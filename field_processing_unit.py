@@ -7,19 +7,14 @@ CounterFitConnection.init('127.0.0.1', 5000)
 
 sensor = GroveLightSensor(1)
 position_x = 45
-position_z = 45
 
-def handle_fpu_commands(client, userdata, message, position_x, position_z):
+def handle_fpu_commands(client, userdata, message):
+    global position_x
     payload = json.loads(message.payload.decode())
-    print("handle_fpu_commands:", payload)
     if payload['desired_position_x'] != position_x:
         print("Moving on x-axis...")
         position_x = payload['desired_position_x']
-    if payload['desired_position_z'] != position_z:
-        print("Moving on z-axis...")
-        position_z = payload['desired_position_z']
-    print("New position_x: ", position_x)
-    print("New position_z: ", position_z)
+    print("position_x: ", position_x)
 
 id = 'csci_ecu_21_ant'
 name = id + 'field_processing_unit'
@@ -32,14 +27,12 @@ mqtt_client.loop_start()
 mqtt_client.on_message = handle_fpu_commands
 
 while True:
-    uv = sensor.light
-    data = json.dumps(
+    wattage = sensor.light
+    outbound_data = json.dumps(
         {
-        'uv' : uv, 
+        'wattage' : wattage, 
         'position_x': position_x, 
-        'position_z': position_z
         }
     )
-    print(data)
-    mqtt_client.publish(outbound_topic, data)
+    mqtt_client.publish(outbound_topic, outbound_data)
     time.sleep(5)
