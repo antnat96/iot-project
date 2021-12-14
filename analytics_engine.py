@@ -16,26 +16,20 @@ mqtt_server.loop_start()
 file_name = 'fpu_data.csv'
 fieldnames = ['date', 'wattage', 'x_pos']
 curr_wattage = 0
-highest_recorded_wattage = 0
+last_wattage = 0
 
 def handle_fpu_data(client, userdata, message):
     global curr_wattage
-    global highest_recorded_wattage
+    global last_wattage
     inbound = json.loads(message.payload.decode())
     curr_wattage = inbound['wattage']
     print(curr_wattage)
     outbound_data = {}
     shouldPublish = False
-    if curr_wattage > highest_recorded_wattage:
-        highest_recorded_wattage = curr_wattage
-        outbound_data = json.dumps(
-            {
-            'desired_position_x': inbound['position_x'], 
-            }
-        )
-        shouldPublish = True
-        
-    if curr_wattage < highest_recorded_wattage: # need to adjust
+    # If difference is greater than 100 watts between last wattage and current wattage, there is
+    # probably just some cloud cover and we don't want the system to move yet
+    # But if the difference is small and the last wattage report was higher, we probably need to move to keep up with the sun
+    if curr_wattage < last_wattage and (abs(curr_wattage - last_wattage) < 100 or last_wattage == 0):
         outbound_data = json.dumps(
             {
             'desired_position_x': inbound['position_x'] + 2, 
@@ -45,7 +39,7 @@ def handle_fpu_data(client, userdata, message):
         
     if shouldPublish == True:
         mqtt_server.publish(outbound_topic, outbound_data)
-
+    last_wattage = curr_wattage
     with open(file_name, mode='a') as wattage_file:        
         wattage_writer = csv.DictWriter(wattage_file, fieldnames=fieldnames)
         wattage_writer.writerow({'date' : datetime.now().astimezone().replace(microsecond=0).isoformat(), 'wattage' : curr_wattage, 'x_pos':  inbound['position_x'] })
