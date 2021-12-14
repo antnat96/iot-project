@@ -14,7 +14,7 @@ mqtt_server.connect('35.243.224.151')
 mqtt_server.subscribe(inbound_topic)
 mqtt_server.loop_start()
 file_name = 'fpu_data.csv'
-fieldnames = ['date', 'time', 'wattage', 'x']
+fieldnames = ['date', 'wattage', 'x_pos']
 curr_wattage = 0
 highest_recorded_wattage = 0
 
@@ -25,6 +25,7 @@ def handle_fpu_data(client, userdata, message):
     curr_wattage = inbound['wattage']
     print(curr_wattage)
     outbound_data = {}
+    shouldPublish = False
     if curr_wattage > highest_recorded_wattage:
         highest_recorded_wattage = curr_wattage
         outbound_data = json.dumps(
@@ -32,6 +33,7 @@ def handle_fpu_data(client, userdata, message):
             'desired_position_x': inbound['position_x'], 
             }
         )
+        shouldPublish = True
         
     if curr_wattage < highest_recorded_wattage: # need to adjust
         outbound_data = json.dumps(
@@ -39,18 +41,21 @@ def handle_fpu_data(client, userdata, message):
             'desired_position_x': inbound['position_x'] + 2, 
             }
         )
-    mqtt_server.publish(outbound_topic, outbound_data)
+        shouldPublish = True
+        
+    if shouldPublish == True:
+        mqtt_server.publish(outbound_topic, outbound_data)
 
-    # with open(file_name, mode='a') as temperature_file:        
-    #     temperature_writer = csv.DictWriter(temperature_file, fieldnames=fieldnames)
-    #     temperature_writer.writerow({'date' : datetime.now().astimezone().replace(microsecond=0).isoformat(), 'temperature' : payload['temperature']})
+    with open(file_name, mode='a') as wattage_file:        
+        wattage_writer = csv.DictWriter(wattage_file, fieldnames=fieldnames)
+        wattage_writer.writerow({'date' : datetime.now().astimezone().replace(microsecond=0).isoformat(), 'wattage' : curr_wattage, 'x_pos':  inbound['position_x'] })
 
 mqtt_server.on_message = handle_fpu_data
 
-# if not path.exists(file_name):
-#     with open(file_name, mode='w') as csv_file:
-#         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-#         writer.writeheader()
+if not path.exists(file_name):
+    with open(file_name, mode='w') as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
 
 while True:
     time.sleep(2)
